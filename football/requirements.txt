@@ -1,1 +1,2 @@
-streamlit\npandas\npython-docx
+streamlit
+pandas

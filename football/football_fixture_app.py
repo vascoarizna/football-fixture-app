@@ -65,39 +65,78 @@ def schedule_matches(fixtures, start_time_day1, start_time_day2, last_match_star
     last_match_start_day2 = datetime.strptime(last_match_start_day2, "%H:%M")
     current_time = start_time_day1
     current_day = 1
-    pitch = 1
+
+    # Track active teams and pitch availability
+    active_teams = set()
 
     for round_matches in fixtures:
+        # Track matches scheduled for each pitch in a time slot
+        pitch = 1
         for match in round_matches:
+            # Move to the next day if time exceeds the last match start time
             if current_day == 1 and current_time > last_match_start_day1:
                 current_day = 2
                 current_time = start_time_day2
-                pitch = 1
+                active_teams.clear()
             if current_day == 2 and current_time > last_match_start_day2:
                 break
-            schedule.append({
-                "Date": f"Day {current_day}",
-                "Time": current_time.strftime("%H:%M"),
-                "Pitch": pitch,
-                "Team A": match[0],
-                "Team B": match[1],
-            })
-            pitch += 1
+
+            # Ensure no overlap and limit matches to available pitches
+            if pitch <= num_pitches and match[0] not in active_teams and match[1] not in active_teams:
+                schedule.append({
+                    "Date": f"Day {current_day}",
+                    "Time": current_time.strftime("%H:%M"),
+                    "Pitch": pitch,
+                    "Team A": match[0],
+                    "Team B": match[1],
+                })
+                active_teams.add(match[0])
+                active_teams.add(match[1])
+                pitch += 1
+
+            # If all pitches are occupied or teams overlap, move to the next time slot
             if pitch > num_pitches:
-                pitch = 1
                 current_time += timedelta(minutes=match_duration)
+                pitch = 1
+                active_teams.clear()
+
+        # Increment time after processing all matches in the current round
+        current_time += timedelta(minutes=match_duration)
+        active_teams.clear()
+
     return schedule
 
+
+
+
+#--------- APP
     
-    
+# Streamlit App
 st.title("Football Fixture Generator")
 st.sidebar.header("Settings")
 
+# Step 1: Select the Number of Teams
+num_teams = st.sidebar.number_input("Number of Teams", min_value=2, max_value=20, value=10)
+
+# Step 2: Input Team Names
+teams = []
+for i in range(num_teams):
+    team_name = st.sidebar.text_input(f"Enter Team {i+1} Name", value=f"Team {i+1}")
+    teams.append(team_name)
+
+# Step 3: Select Start and End Times for Each Day
+start_time_day1 = st.sidebar.text_input("Start Time (Day 1)", value="13:00")
+last_match_start_day1 = st.sidebar.text_input("End Time (Day 1)", value="17:00")
+start_time_day2 = st.sidebar.text_input("Start Time (Day 2)", value="09:00")
+last_match_start_day2 = st.sidebar.text_input("End Time (Day 2)", value="17:00")
+
+# Other Parameters
 num_pitches = st.sidebar.number_input("Number of Pitches", min_value=1, value=3)
 match_duration = st.sidebar.number_input("Match Duration (minutes)", min_value=1, value=30)
-seed = st.sidebar.number_input("Seed", min_value=1, value=42)
+seed = st.sidebar.number_input("Random Seed", value=42)
 
 if st.button("Generate Fixture"):
+    random.seed(seed)
     fixtures = generate_fixture(teams, num_pitches,seed)
     schedule = schedule_matches(
         fixtures, start_time_day1, start_time_day2, 
@@ -105,11 +144,19 @@ if st.button("Generate Fixture"):
         num_pitches, match_duration
     )
     
+    # Display the schedule
     df = pd.DataFrame(schedule)
+    df=df.reset_index()
+    df.rename(columns={'index':'Match #'},inplace=True)
+    df['Match #']+=1
+    df.set_index('Match #',inplace=True)
+
     st.dataframe(df)
+    
+    # Options for Downloads
     st.download_button(
-        label="Download Excel", 
-        data=df.to_csv(index=False), 
-        file_name="football_fixture.csv", 
+        label="Download Excel",
+        data=df.to_csv(index=False),
+        file_name="football_fixture.csv",
         mime="text/csv"
     )

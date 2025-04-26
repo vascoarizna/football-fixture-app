@@ -1,12 +1,9 @@
 import streamlit as st
-from docx import Document
 import random
 import pandas as pd
 from datetime import datetime, timedelta
 
 # Original code here: parameters, functions, etc.
-
-
 
 
 
@@ -91,24 +88,6 @@ def schedule_matches(fixtures, start_time_day1, start_time_day2, last_match_star
                 current_time += timedelta(minutes=match_duration)
     return schedule
 
-def create_word_output(schedule, team_colors, output_file="football_fixture.docx"):
-    doc = Document()
-    
-    doc.add_heading("Football Match Fixture", level=1)
-    doc.add_paragraph("ALL MATCHES ARE 11 MINUTES EACH WAY", style='Intense Quote')
-    doc.add_heading("Team Colors", level=2)
-    
-    for team, color in team_colors.items():
-        doc.add_paragraph(f"{team} – {color}")
-    
-    doc.add_heading("Match Schedule", level=2)
-    
-    for entry in schedule:
-        doc.add_paragraph(f"{entry['Date']} | {entry['Time']} | Pitch {entry['Pitch']} | {entry['Team A']} vs {entry['Team B']}")
-    
-    doc.save(output_file)
-    print(f"Word document saved as {output_file}")
-    
     
     
 st.title("Football Fixture Generator")
@@ -116,7 +95,7 @@ st.sidebar.header("Settings")
 
 num_pitches = st.sidebar.number_input("Number of Pitches", min_value=1, value=3)
 match_duration = st.sidebar.number_input("Match Duration (minutes)", min_value=1, value=30)
-seed = st.sidebar.number_input("Seed", min_value=1, value=100)
+seed = st.sidebar.number_input("Seed", min_value=1, value=42)
 
 if st.button("Generate Fixture"):
     fixtures = generate_fixture(teams, num_pitches,seed)

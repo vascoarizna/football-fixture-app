@@ -1,4 +1,5 @@
 import streamlit as st
+from docx import Document
 import random
 import pandas as pd
 from datetime import datetime, timedelta
@@ -108,6 +109,41 @@ def schedule_matches(fixtures, start_time_day1, start_time_day2, last_match_star
 
 
 
+def create_word_output(schedule, team_colors, output_file="football_fixture.docx"):
+    doc = Document()
+    
+    doc.add_heading("Football Match Fixture", level=1)
+    doc.add_paragraph("ALL MATCHES ARE 11 MINUTES EACH WAY", style='Intense Quote')
+    doc.add_heading("Team Colors", level=2)
+    
+    for team, color in team_colors.items():
+        doc.add_paragraph(f"{team} – {color}")
+    
+    doc.add_heading("Match Schedule", level=2)
+    
+    for entry in schedule:
+        doc.add_paragraph(f"{entry['Date']} | {entry['Time']} | Pitch {entry['Pitch']} | {entry['Team A']} vs {entry['Team B']}")
+    
+    doc.save(output_file)
+    print(f"Word document saved as {output_file}")
+
+
+# # Main execution
+# fixtures = generate_fixture(teams, num_pitches,seed)
+# schedule = schedule_matches(fixtures, start_time_day1, start_time_day2, last_match_start_day1, last_match_start_day2, num_pitches, match_duration)
+
+
+# df = pd.DataFrame(schedule)
+# df=df.reset_index()
+# df.rename(columns={'index':'Match #'},inplace=True)
+# df['Match #']+=1
+# df.set_index('Match #',inplace=True)
+
+# df.to_excel("football_fixture.xlsx", index=False)
+
+
+# create_word_output(schedule, team_colors)
+# print("Fixture has been created and saved to 'football_fixture.xlsx' and 'football_fixture.docx'")
 
 #--------- APP
     
@@ -160,3 +196,12 @@ if st.button("Generate Fixture"):
         file_name="football_fixture.csv",
         mime="text/csv"
     )
+    
+    create_word_output(schedule, {team: "Color TBD" for team in teams}, output_file="football_fixture.docx")
+    with open("football_fixture.docx", "rb") as doc:
+        st.download_button(
+            label="Download Word Document",
+            data=doc,
+            file_name="football_fixture.docx",
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )

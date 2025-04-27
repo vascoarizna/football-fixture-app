@@ -156,8 +156,8 @@ def create_word_output(schedule, team_colors, output_file="football_fixture.docx
     for entry in schedule:
         doc.add_paragraph(f"{entry['Date']} | {entry['Time']} | Pitch {entry['Pitch']} | {entry['Team A']} vs {entry['Team B']}")
     
- #   doc.save(output_file)
-#    print(f"Word document saved as {output_file}")
+    doc.save(output_file)
+    print(f"Word document saved as {output_file}")
 
 
 #--------- APP

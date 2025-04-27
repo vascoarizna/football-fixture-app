@@ -4,10 +4,6 @@ import random
 import pandas as pd
 from datetime import datetime, timedelta
 
-# Original code here: parameters, functions, etc.
-
-
-
 # Parameters
 teams = [
     "Wargrave Wolves", "Oakfield Eagles", "Wollaston Blue", "Parkfield Youth", 
@@ -27,25 +23,28 @@ team_colors = {
     "Gurnard Rockets": "Green"
 }
 num_pitches = 3
-start_time_day1 = "13:00"
-start_time_day2 = "09:00"
-last_match_start_day1 = "17:00"
-last_match_start_day2 = "17:00"
 match_duration = 30  # minutes
 seed = 42
 
+competition_days = 2  # Default number of days
+start_times = ["13:00", "09:00"]  # Custom start times for Day 1 and Day 2
+end_times = ["17:00", "17:00"]   # Custom end times for Day 1 and Day 2
 
+two_legs = True  # Set to True if each team should play twice against each other (home and away)
+has_final = True  # Set to True if a final match should be included
 
-
-def generate_fixture(teams, num_pitches,seed):
+def generate_fixture(teams, seed, two_legs=False):
     random.seed(seed)
-    random.shuffle(teams)  
+    random.shuffle(teams)
     fixtures = []
     num_teams = len(teams)
-    if num_teams % 2 != 0:
+
+    if num_teams % 2 != 0:  # Add a dummy team if odd number of teams
         teams.append("Bye")
         num_teams += 1
 
+    # Generate first-leg matches
+    first_leg = []
     for round_num in range(num_teams - 1):
         round_matches = []
         for i in range(num_teams // 2):
@@ -53,49 +52,68 @@ def generate_fixture(teams, num_pitches,seed):
             away = teams[num_teams - 1 - i]
             if home != "Bye" and away != "Bye":
                 round_matches.append((home, away))
-        fixtures.append(round_matches)
-        teams = [teams[0]] + [teams[-1]] + teams[1:-1] 
+        first_leg.append(round_matches)
+        teams = [teams[0]] + [teams[-1]] + teams[1:-1]  # Rotate the teams
+
+    fixtures.extend(first_leg)
+
+    # Generate second-leg matches (reversing home and away)
+    if two_legs:
+        second_leg = []
+        for round_matches in first_leg:
+            reversed_matches = [(away, home) for (home, away) in round_matches]
+            second_leg.append(reversed_matches)
+        fixtures.extend(second_leg)
+
     return fixtures
 
 
-def schedule_matches(fixtures, start_time_day1, start_time_day2, last_match_start_day1, last_match_start_day2, num_pitches, match_duration):
-    schedule = []
-    start_time_day1 = datetime.strptime(start_time_day1, "%H:%M")
-    start_time_day2 = datetime.strptime(start_time_day2, "%H:%M")
-    last_match_start_day1 = datetime.strptime(last_match_start_day1, "%H:%M")
-    last_match_start_day2 = datetime.strptime(last_match_start_day2, "%H:%M")
-    current_time = start_time_day1
-    current_day = 1
+def schedule_matches(fixtures, num_pitches, match_duration, competition_days, start_times=None, end_times=None, has_final=False):
+    # Ensure start_times and end_times cover at least days 1 and 2, with default values for additional days
+    if start_times is None:
+        start_times = ["09:00", "09:00"] + ["09:00"] * (competition_days - 2)
+    elif len(start_times) < competition_days:
+        start_times += ["09:00"] * (competition_days - len(start_times))
 
-    # Track active teams and pitch availability
+    if end_times is None:
+        end_times = ["17:00", "17:00"] + ["17:00"] * (competition_days - 2)
+    elif len(end_times) < competition_days:
+        end_times += ["17:00"] * (competition_days - len(end_times))
+
+    schedule = []
     active_teams = set()
+    matches_per_day = [[] for _ in range(competition_days)]  # To track matches per day
+    current_day = 1
+    current_time = datetime.strptime(start_times[0], "%H:%M")
 
     for round_matches in fixtures:
-        # Track matches scheduled for each pitch in a time slot
         pitch = 1
         for match in round_matches:
-            # Move to the next day if time exceeds the last match start time
-            if current_day == 1 and current_time > last_match_start_day1:
-                current_day = 2
-                current_time = start_time_day2
+            # Switch days if time exceeds the last match start time for the current day
+            if current_time > datetime.strptime(end_times[current_day - 1], "%H:%M"):
+                current_day += 1
+                if current_day > competition_days:  # Stop if all days are used
+                    break
+                current_time = datetime.strptime(start_times[current_day - 1], "%H:%M")
                 active_teams.clear()
-            if current_day == 2 and current_time > last_match_start_day2:
-                break
 
-            # Ensure no overlap and limit matches to available pitches
+            # Assign matches to available pitches without overlap
             if pitch <= num_pitches and match[0] not in active_teams and match[1] not in active_teams:
-                schedule.append({
+                match_entry = {
                     "Date": f"Day {current_day}",
                     "Time": current_time.strftime("%H:%M"),
                     "Pitch": pitch,
                     "Team A": match[0],
                     "Team B": match[1],
-                })
+                    "Type": "Group",  # Regular match type
+                }
+                schedule.append(match_entry)
+                matches_per_day[current_day - 1].append(match_entry)  # Track match for the day
                 active_teams.add(match[0])
                 active_teams.add(match[1])
                 pitch += 1
 
-            # If all pitches are occupied or teams overlap, move to the next time slot
+            # If all pitches are occupied, move to the next time slot
             if pitch > num_pitches:
                 current_time += timedelta(minutes=match_duration)
                 pitch = 1
@@ -105,7 +123,21 @@ def schedule_matches(fixtures, start_time_day1, start_time_day2, last_match_star
         current_time += timedelta(minutes=match_duration)
         active_teams.clear()
 
+    # Add the final match if `has_final` is True
+    if has_final:
+        last_match_time = datetime.strptime(schedule[-1]["Time"], "%H:%M")
+        final_match_time = last_match_time + timedelta(minutes=30)
+        schedule.append({
+            "Date": f"Day {current_day}",
+            "Time": final_match_time.strftime("%H:%M"),
+            "Pitch": 1,  # Default pitch for the final
+            "Team A": "Ranked #1 Team",
+            "Team B": "Ranked #2 Team",
+            "Type": "Final",  # Final match type
+        })
+
     return schedule
+
 
 
 
@@ -124,26 +156,9 @@ def create_word_output(schedule, team_colors, output_file="football_fixture.docx
     for entry in schedule:
         doc.add_paragraph(f"{entry['Date']} | {entry['Time']} | Pitch {entry['Pitch']} | {entry['Team A']} vs {entry['Team B']}")
     
-    doc.save(output_file)
-    print(f"Word document saved as {output_file}")
+ #   doc.save(output_file)
+#    print(f"Word document saved as {output_file}")
 
-
-# # Main execution
-# fixtures = generate_fixture(teams, num_pitches,seed)
-# schedule = schedule_matches(fixtures, start_time_day1, start_time_day2, last_match_start_day1, last_match_start_day2, num_pitches, match_duration)
-
-
-# df = pd.DataFrame(schedule)
-# df=df.reset_index()
-# df.rename(columns={'index':'Match #'},inplace=True)
-# df['Match #']+=1
-# df.set_index('Match #',inplace=True)
-
-# df.to_excel("football_fixture.xlsx", index=False)
-
-
-# create_word_output(schedule, team_colors)
-# print("Fixture has been created and saved to 'football_fixture.xlsx' and 'football_fixture.docx'")
 
 #--------- APP
     
@@ -151,41 +166,64 @@ def create_word_output(schedule, team_colors, output_file="football_fixture.docx
 st.title("Football Fixture Generator")
 st.sidebar.header("Settings")
 
-# Step 1: Select the Number of Teams
-num_teams = st.sidebar.number_input("Number of Teams", min_value=2, max_value=20, value=10)
-
-# Step 2: Input Team Names
-teams = []
-for i in range(num_teams):
-    team_name = st.sidebar.text_input(f"Enter Team {i+1} Name", value=f"Team {i+1}")
-    teams.append(team_name)
-
-# Step 3: Select Start and End Times for Each Day
-start_time_day1 = st.sidebar.text_input("Start Time (Day 1)", value="13:00")
-last_match_start_day1 = st.sidebar.text_input("End Time (Day 1)", value="17:00")
-start_time_day2 = st.sidebar.text_input("Start Time (Day 2)", value="09:00")
-last_match_start_day2 = st.sidebar.text_input("End Time (Day 2)", value="17:00")
 
 # Other Parameters
 num_pitches = st.sidebar.number_input("Number of Pitches", min_value=1, value=3)
 match_duration = st.sidebar.number_input("Match Duration (minutes)", min_value=1, value=30)
 seed = st.sidebar.number_input("Random Seed", value=42)
 
-if st.button("Generate Fixture"):
-    random.seed(seed)
-    fixtures = generate_fixture(teams, num_pitches,seed)
-    schedule = schedule_matches(
-        fixtures, start_time_day1, start_time_day2, 
-        last_match_start_day1, last_match_start_day2, 
-        num_pitches, match_duration
-    )
+
+# Step 1: Select the Number of Teams
+num_teams = st.sidebar.number_input("Number of Teams", min_value=2, max_value=20, value=10)
+
+# Step 2: Input Team Names
+teams = []
+for i in range(num_teams):
+    team_name = st.sidebar.text_input(f"Enter Team {i+1} Name", value=f"Team {i+1}", key=f"team_name_{i}")
+    teams.append(team_name)
     
+    
+    
+    
+# Step 3: Select Number of Competition Days
+competition_days = st.sidebar.number_input("Number of Competition Days", min_value=1, max_value=7, value=2)
+
+# Step 4: Input Start and End Times for Each Day
+start_times = []
+end_times = []
+for day in range(competition_days):
+    start_time = st.sidebar.text_input(f"Start Time (Day {day+1})", value="09:00", key=f"start_time_{day}")
+    end_time = st.sidebar.text_input(f"End Time (Day {day+1})", value="17:00", key=f"end_time_{day}")
+    start_times.append(start_time)
+    end_times.append(end_time)
+
+# Step 5: Two Legs Option
+two_legs = st.sidebar.checkbox("Play Twice Against Each Other (Two Legs)", value=False)
+
+if st.button("Generate Fixture"):
+    fixtures = generate_fixture(teams, seed, two_legs)
+#    schedule = schedule_matches(fixtures, num_pitches, match_duration, competition_days, start_times, end_times)
+    schedule = schedule_matches(fixtures, num_pitches, match_duration, competition_days, start_times, end_times, has_final)
+    
+    
+    
+        # Calculate theoretical number of matches
+    theoretical_matches = len(teams) * (len(teams) - 1) // 2
+    if two_legs:
+        theoretical_matches *= 2
+
+    # Display warning if matches generated is fewer than expected
+    if len(schedule) < theoretical_matches:
+        st.warning(f"Warning: Only {len(schedule)} matches were generated, but {theoretical_matches} matches were expected. This might be due to insufficient time or pitches.")
+        
+        
+        
     # Display the schedule
     df = pd.DataFrame(schedule)
-    df=df.reset_index()
-    df.rename(columns={'index':'Match #'},inplace=True)
-    df['Match #']+=1
-    df.set_index('Match #',inplace=True)
+    df = df.reset_index()
+    df.rename(columns={'index': 'Match #'}, inplace=True)
+    df['Match #'] += 1
+    df.set_index('Match #', inplace=True)
 
     st.dataframe(df)
     

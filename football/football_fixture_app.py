@@ -200,6 +200,8 @@ for day in range(competition_days):
 # Step 5: Two Legs Option
 two_legs = st.sidebar.checkbox("Play Twice Against Each Other (Two Legs)", value=False)
 
+has_final = st.sidebar.checkbox("Add Final", value=False)
+
 if st.button("Generate Fixture"):
     fixtures = generate_fixture(teams, seed, two_legs)
 #    schedule = schedule_matches(fixtures, num_pitches, match_duration, competition_days, start_times, end_times)
